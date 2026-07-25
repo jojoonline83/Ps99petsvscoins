@@ -51,10 +51,10 @@ jobs:
             git diff --cached --quiet && exit 0
             git commit -m "chore: snapshot clan battle data"
             git push && exit 0
-            echo "Push rejected — retrying from latest main"
+            echo "Push rejected — retrying from latest ${GITHUB_REF_NAME}"
             git reset --hard HEAD~1
-            git fetch origin main
-            git reset --hard origin/main
+            git fetch origin "${GITHUB_REF_NAME}"
+            git reset --hard "origin/${GITHUB_REF_NAME}"
           done
           echo "::error::Failed to push snapshot after 5 attempts"
           exit 1
