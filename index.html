@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PS99 Clan Battle Leaderboard - Pets vs Coins</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #1a1d28;
+    --bg3: #242736;
+    --border: #2e3144;
+    --text: #e4e4e7;
+    --text2: #a1a1aa;
+    --gold: #fbbf24;
+    --silver: #94a3b8;
+    --bronze: #d97706;
+    --green: #22c55e;
+    --red: #ef4444;
+    --blue: #3b82f6;
+    --purple: #a78bfa;
+    --accent: #6366f1;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 20px;
+    text-align: center;
+  }
+
+  .header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--gold), #fde68a, var(--gold));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 4px;
+  }
+
+  .header .subtitle {
+    color: var(--text2);
+    font-size: 0.9rem;
+  }
+
+  .status-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 24px;
+    padding: 10px 20px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+    color: var(--text2);
+  }
+
+  .status-bar .battle-name {
+    color: var(--purple);
+    font-weight: 600;
+  }
+
+  .status-bar .refresh-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .status-bar .countdown {
+    color: var(--gold);
+    font-weight: 600;
+    min-width: 40px;
+  }
+
+  .status-bar .last-update {
+    color: var(--text2);
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 4px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-overlay {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--text2);
+    font-size: 1.1rem;
+  }
+
+  .loading-overlay .spinner { width: 32px; height: 32px; border-width: 3px; }
+
+  .error-msg {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--red);
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    padding: 8px 0 12px;
+    font-size: 0.78rem;
+    color: var(--text2);
+    flex-wrap: wrap;
+  }
+
+  .legend span { display: flex; align-items: center; gap: 4px; }
+  .legend .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .clan-row {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+
+  .clan-row:hover { border-color: var(--accent); }
+  .clan-row.rank-1 { border-color: var(--gold); }
+  .clan-row.rank-2 { border-color: var(--silver); }
+  .clan-row.rank-3 { border-color: var(--bronze); }
+
+  .clan-header {
+    display: grid;
+    grid-template-columns: 50px 1fr 140px 120px 120px 120px 40px;
+    align-items: center;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+    gap: 8px;
+  }
+
+  @media (max-width: 800px) {
+    .clan-header {
+      grid-template-columns: 40px 1fr 90px 80px 80px 80px 30px;
+      padding: 10px 10px;
+      font-size: 0.82rem;
+      gap: 4px;
+    }
+  }
+
+  @media (max-width: 550px) {
+    .clan-header {
+      grid-template-columns: 36px 1fr 70px 60px 30px;
+      padding: 8px 8px;
+      font-size: 0.78rem;
+    }
+    .clan-header .delta-30, .clan-header .delta-60 { display: none; }
+    .col-labels .delta-30, .col-labels .delta-60 { display: none; }
+  }
+
+  .rank {
+    font-weight: 700;
+    font-size: 1.1rem;
+    text-align: center;
+  }
+
+  .rank-1 .rank { color: var(--gold); }
+  .rank-2 .rank { color: var(--silver); }
+  .rank-3 .rank { color: var(--bronze); }
+
+  .clan-name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .clan-name .member-count {
+    color: var(--text2);
+    font-weight: 400;
+    font-size: 0.8em;
+    margin-left: 6px;
+  }
+
+  .score {
+    text-align: right;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .delta {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.9em;
+  }
+
+  .delta.positive { color: var(--green); }
+  .delta.negative { color: var(--red); }
+  .delta.zero { color: var(--text2); }
+
+  .expand-arrow {
+    text-align: center;
+    color: var(--text2);
+    font-size: 0.75rem;
+    transition: transform 0.2s;
+  }
+
+  .clan-row.open .expand-arrow { transform: rotate(180deg); }
+
+  .col-labels {
+    display: grid;
+    grid-template-columns: 50px 1fr 140px 120px 120px 120px 40px;
+    padding: 8px 16px;
+    font-size: 0.75rem;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+  }
+
+  @media (max-width: 800px) {
+    .col-labels {
+      grid-template-columns: 40px 1fr 90px 80px 80px 80px 30px;
+      padding: 6px 10px;
+      font-size: 0.7rem;
+      gap: 4px;
+    }
+  }
+
+  @media (max-width: 550px) {
+    .col-labels {
+      grid-template-columns: 36px 1fr 70px 60px 30px;
+      padding: 6px 8px;
+    }
+  }
+
+  .col-labels span:nth-child(n+3) { text-align: right; }
+
+  .member-panel {
+    display: none;
+    background: var(--bg3);
+    border-top: 1px solid var(--border);
+    padding: 8px 16px;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .clan-row.open .member-panel { display: block; }
+
+  .member-row {
+    display: grid;
+    grid-template-columns: 30px 1fr 120px 100px 100px 100px;
+    align-items: center;
+    padding: 6px 4px;
+    font-size: 0.82rem;
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+  }
+
+  .member-row:last-child { border-bottom: none; }
+
+  @media (max-width: 800px) {
+    .member-row {
+      grid-template-columns: 24px 1fr 80px 70px 70px 70px;
+      font-size: 0.78rem;
+      gap: 4px;
+    }
+  }
+
+  @media (max-width: 550px) {
+    .member-row {
+      grid-template-columns: 24px 1fr 70px 60px;
+      font-size: 0.75rem;
+    }
+    .member-row .m-delta-30, .member-row .m-delta-60 { display: none; }
+    .member-header .m-delta-30, .member-header .m-delta-60 { display: none; }
+  }
+
+  .member-rank {
+    color: var(--text2);
+    font-size: 0.8em;
+    text-align: center;
+  }
+
+  .member-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .member-header {
+    display: grid;
+    grid-template-columns: 30px 1fr 120px 100px 100px 100px;
+    padding: 4px 4px 8px;
+    font-size: 0.72rem;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+  }
+
+  @media (max-width: 800px) {
+    .member-header {
+      grid-template-columns: 24px 1fr 80px 70px 70px 70px;
+      font-size: 0.68rem;
+      gap: 4px;
+    }
+  }
+
+  @media (max-width: 550px) {
+    .member-header {
+      grid-template-columns: 24px 1fr 70px 60px;
+    }
+  }
+
+  .member-header span:nth-child(n+3) { text-align: right; }
+
+  .footer {
+    text-align: center;
+    padding: 20px;
+    color: var(--text2);
+    font-size: 0.75rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>PS99 Clan Battle Leaderboard</h1>
+  <div class="subtitle">Top 100 Clans - Pets vs Coins</div>
+</div>
+
+<div class="status-bar">
+  <div>Battle: <span class="battle-name" id="battleName">Loading...</span></div>
+  <div class="refresh-info">
+    Next refresh: <span class="countdown" id="countdown">--:--</span>
+  </div>
+  <div class="last-update">
+    Updated: <span id="lastUpdate">--</span>
+  </div>
+  <div id="fetchStatus"></div>
+</div>
+
+<div class="container">
+  <div class="legend">
+    <span><span class="dot" style="background:var(--green)"></span> Gained</span>
+    <span><span class="dot" style="background:var(--red)"></span> Lost</span>
+    <span><span class="dot" style="background:var(--text2)"></span> No change</span>
+  </div>
+
+  <div class="col-labels">
+    <span>#</span>
+    <span>Clan</span>
+    <span>Score</span>
+    <span class="delta-10">+10m</span>
+    <span class="delta-30">+30m</span>
+    <span class="delta-60">+1h</span>
+    <span></span>
+  </div>
+
+  <div id="leaderboard">
+    <div class="loading-overlay">
+      <div class="spinner"></div>
+      <p style="margin-top:12px">Loading clan battle data...</p>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  Data from PS99 Big Games API &bull; Auto-refreshes every 10 minutes &bull; Deltas track 10m / 30m / 1h changes
+</div>
+
+<script>
+const API_BASE = "https://ps99.biggamesapi.io/api";
+const ROBLOX_USERS_API = "https://users.roblox.com/v1/users";
+const REFRESH_INTERVAL = 10 * 60 * 1000;
+const MAX_CLANS = 100;
+
+let snapshots = [];
+let displayNameCache = new Map();
+let countdownTimer = null;
+let nextRefreshAt = 0;
+
+function formatNumber(n) {
+  if (n == null || isNaN(n)) return "0";
+  if (n >= 1e15) return (n / 1e15).toFixed(2) + "Q";
+  if (n >= 1e12) return (n / 1e12).toFixed(2) + "T";
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+  return n.toLocaleString();
+}
+
+function formatDelta(val) {
+  if (val == null) return { text: "--", cls: "zero" };
+  if (val > 0) return { text: "+" + formatNumber(val), cls: "positive" };
+  if (val < 0) return { text: formatNumber(val), cls: "negative" };
+  return { text: "0", cls: "zero" };
+}
+
+function firstDefined(...args) {
+  for (const a of args) if (a !== undefined && a !== null) return a;
+  return undefined;
+}
+
+function asNumber(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+async function fetchJSON(url) {
+  const res = await fetch(url, {
+    headers: { "Accept": "application/json" }
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  return res.json();
+}
+
+async function getActiveBattle() {
+  try {
+    const json = await fetchJSON(`${API_BASE}/activeClanBattle`);
+    const data = json?.data;
+    if (!data) return null;
+    return {
+      id: data?.configName || data?.ConfigName || data?._id || "Unknown",
+      name: data?.configName || data?.ConfigName || "Clan Battle"
+    };
+  } catch (e) {
+    console.warn("Failed to fetch active battle:", e);
+    return null;
+  }
+}
+
+async function getTopClans() {
+  const clans = [];
+  const pageSize = 50;
+  const pages = Math.ceil(MAX_CLANS / pageSize);
+
+  for (let page = 1; page <= pages; page++) {
+    try {
+      const json = await fetchJSON(
+        `${API_BASE}/clans?page=${page}&pageSize=${pageSize}&sort=Points&sortOrder=desc`
+      );
+      const data = Array.isArray(json?.data) ? json.data : [];
+      if (!data.length) break;
+
+      for (const raw of data) {
+        const name = firstDefined(raw?.Name, raw?.name, raw?.ClanName, raw?.clanName) || "Unknown";
+        const points = asNumber(firstDefined(raw?.Points, raw?.points, raw?.Score, raw?.score, raw?.Total, raw?.total));
+        const members = asNumber(firstDefined(raw?.Members, raw?.members, raw?.MemberCount, raw?.memberCount));
+        const depIndex = firstDefined(raw?.DepositedDiamonds, raw?.depositedDiamonds);
+
+        clans.push({ name, points, memberCount: members });
+        if (clans.length >= MAX_CLANS) break;
+      }
+
+      if (clans.length >= MAX_CLANS) break;
+    } catch (e) {
+      console.warn(`Failed to fetch clans page ${page}:`, e);
+      break;
+    }
+  }
+
+  return clans;
+}
+
+async function getClanDetails(clanName) {
+  try {
+    const json = await fetchJSON(`${API_BASE}/clan/${encodeURIComponent(clanName)}`);
+    const data = json?.data;
+    if (!data) return null;
+    return data;
+  } catch (e) {
+    console.warn(`Failed to fetch clan "${clanName}":`, e);
+    return null;
+  }
+}
+
+function extractMemberContributions(clanData, battleName) {
+  const members = Array.isArray(clanData?.Members) ? clanData.Members : [];
+
+  let battleData = null;
+  const battles = clanData?.Battles || clanData?.battles || {};
+  if (battleName && battles[battleName]) {
+    battleData = battles[battleName];
+  } else {
+    const keys = Object.keys(battles);
+    if (keys.length > 0) {
+      battleData = battles[keys[keys.length - 1]];
+    }
+  }
+
+  let contribRows = [];
+  if (battleData) {
+    contribRows = firstDefined(
+      battleData?.PointContributions,
+      battleData?.pointContributions,
+      battleData?.Contributions,
+      battleData?.contributions,
+      battleData?.Contribution,
+      battleData?.contribution
+    ) || [];
+    if (!Array.isArray(contribRows)) contribRows = [];
+  }
+
+  if (!contribRows.length) {
+    const fallback = firstDefined(
+      clanData?.Contribution?.Battle,
+      clanData?.contribution?.battle,
+      clanData?.Contributions?.Battle,
+      clanData?.contributions?.battle
+    );
+    if (Array.isArray(fallback)) contribRows = fallback;
+  }
+
+  const pointsMap = new Map();
+  for (const row of contribRows) {
+    const userId = asNumber(firstDefined(row?.UserID, row?.UserId, row?.user_id, row?.userId, row?.id));
+    const pts = asNumber(firstDefined(row?.Points, row?.points, row?.TotalPoints, row?.total_points, row?.Score, row?.score, row?.Value, row?.value));
+    if (userId > 0) pointsMap.set(userId, pts);
+  }
+
+  const memberList = [];
+  for (const m of members) {
+    const userId = asNumber(firstDefined(m?.UserID, m?.UserId, m?.user_id, m?.userId, m?.id));
+    if (userId <= 0) continue;
+    const pts = pointsMap.get(userId) || 0;
+    memberList.push({ userId, points: pts });
+  }
+
+  for (const [userId, pts] of pointsMap) {
+    if (!memberList.find(m => m.userId === userId)) {
+      memberList.push({ userId, points: pts });
+    }
+  }
+
+  memberList.sort((a, b) => b.points - a.points);
+  return memberList;
+}
+
+async function resolveDisplayNames(userIds) {
+  const toResolve = userIds.filter(id => !displayNameCache.has(id));
+  if (!toResolve.length) return;
+
+  const batchSize = 100;
+  for (let i = 0; i < toResolve.length; i += batchSize) {
+    const batch = toResolve.slice(i, i + batchSize);
+    try {
+      const res = await fetch(ROBLOX_USERS_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userIds: batch, excludeBannedUsers: false })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        for (const user of (json?.data || [])) {
+          const displayName = user?.displayName || user?.name || `User_${user?.id}`;
+          displayNameCache.set(user.id, displayName);
+        }
+      }
+    } catch (e) {
+      console.warn("Roblox username resolve failed:", e);
+    }
+    for (const id of batch) {
+      if (!displayNameCache.has(id)) {
+        displayNameCache.set(id, `User_${id}`);
+      }
+    }
+  }
+}
+
+function findSnapshot(minutesAgo) {
+  if (snapshots.length < 2) return null;
+  const targetTime = Date.now() - (minutesAgo * 60 * 1000);
+  let best = null;
+  let bestDiff = Infinity;
+  for (const snap of snapshots) {
+    const diff = Math.abs(snap.time - targetTime);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = snap;
+    }
+  }
+  if (bestDiff > minutesAgo * 60 * 1000 * 0.5) return null;
+  return best;
+}
+
+function computeDelta(currentPoints, clanName, minutesAgo, type) {
+  const snap = findSnapshot(minutesAgo);
+  if (!snap) return null;
+  if (type === "clan") {
+    const old = snap.clans.find(c => c.name === clanName);
+    if (!old) return null;
+    return currentPoints - old.points;
+  }
+  return null;
+}
+
+function computeMemberDelta(currentPoints, clanName, userId, minutesAgo) {
+  const snap = findSnapshot(minutesAgo);
+  if (!snap) return null;
+  const oldClan = snap.clans.find(c => c.name === clanName);
+  if (!oldClan || !oldClan.members) return null;
+  const oldMember = oldClan.members.find(m => m.userId === userId);
+  if (!oldMember) return null;
+  return currentPoints - oldMember.points;
+}
+
+async function fetchAllData() {
+  const status = document.getElementById("fetchStatus");
+  status.innerHTML = '<span class="spinner"></span> Fetching data...';
+
+  const battle = await getActiveBattle();
+  const battleName = battle?.id || null;
+  document.getElementById("battleName").textContent = battle?.name || "Unknown";
+
+  const topClans = await getTopClans();
+  if (!topClans.length) {
+    status.textContent = "No clan data available";
+    return null;
+  }
+
+  status.innerHTML = '<span class="spinner"></span> Loading clan details...';
+
+  const batchSize = 5;
+  const fullClans = [];
+
+  for (let i = 0; i < topClans.length; i += batchSize) {
+    const batch = topClans.slice(i, i + batchSize);
+    const details = await Promise.all(
+      batch.map(c => getClanDetails(c.name))
+    );
+
+    for (let j = 0; j < batch.length; j++) {
+      const clan = batch[j];
+      const detail = details[j];
+      let members = [];
+
+      if (detail) {
+        members = extractMemberContributions(detail, battleName);
+      }
+
+      fullClans.push({
+        name: clan.name,
+        points: clan.points,
+        memberCount: clan.memberCount,
+        members
+      });
+    }
+
+    status.innerHTML = `<span class="spinner"></span> Loading clans ${Math.min(i + batchSize, topClans.length)}/${topClans.length}...`;
+  }
+
+  const allUserIds = [];
+  for (const clan of fullClans) {
+    for (const m of clan.members) {
+      allUserIds.push(m.userId);
+    }
+  }
+
+  if (allUserIds.length > 0) {
+    status.innerHTML = `<span class="spinner"></span> Resolving ${allUserIds.length} display names...`;
+    await resolveDisplayNames(allUserIds);
+  }
+
+  const snapshot = {
+    time: Date.now(),
+    clans: fullClans.map(c => ({
+      name: c.name,
+      points: c.points,
+      members: c.members.map(m => ({ userId: m.userId, points: m.points }))
+    }))
+  };
+
+  snapshots.push(snapshot);
+
+  const oneHourAgo = Date.now() - 70 * 60 * 1000;
+  snapshots = snapshots.filter(s => s.time >= oneHourAgo);
+
+  status.textContent = "";
+  return fullClans;
+}
+
+function renderLeaderboard(clans) {
+  const container = document.getElementById("leaderboard");
+
+  if (!clans || !clans.length) {
+    container.innerHTML = '<div class="error-msg">No clan data available. Check console for errors.</div>';
+    return;
+  }
+
+  let html = "";
+
+  for (let i = 0; i < clans.length; i++) {
+    const clan = clans[i];
+    const rank = i + 1;
+    const d10 = computeDelta(clan.points, clan.name, 10, "clan");
+    const d30 = computeDelta(clan.points, clan.name, 30, "clan");
+    const d60 = computeDelta(clan.points, clan.name, 60, "clan");
+    const fd10 = formatDelta(d10);
+    const fd30 = formatDelta(d30);
+    const fd60 = formatDelta(d60);
+
+    const rankClass = rank <= 3 ? ` rank-${rank}` : "";
+
+    html += `<div class="clan-row${rankClass}" data-idx="${i}">`;
+    html += `<div class="clan-header" onclick="toggleClan(${i})">`;
+    html += `<div class="rank">${rank}</div>`;
+    html += `<div class="clan-name">${escapeHtml(clan.name)}<span class="member-count">(${clan.members.length})</span></div>`;
+    html += `<div class="score">${formatNumber(clan.points)}</div>`;
+    html += `<div class="delta delta-10 ${fd10.cls}">${fd10.text}</div>`;
+    html += `<div class="delta delta-30 ${fd30.cls}">${fd30.text}</div>`;
+    html += `<div class="delta delta-60 ${fd60.cls}">${fd60.text}</div>`;
+    html += `<div class="expand-arrow">&#9660;</div>`;
+    html += `</div>`;
+
+    html += `<div class="member-panel">`;
+    html += `<div class="member-header">`;
+    html += `<span>#</span><span>Member</span><span>Score</span>`;
+    html += `<span class="m-delta-10">+10m</span>`;
+    html += `<span class="m-delta-30">+30m</span>`;
+    html += `<span class="m-delta-60">+1h</span>`;
+    html += `</div>`;
+
+    for (let mi = 0; mi < clan.members.length; mi++) {
+      const m = clan.members[mi];
+      const mName = displayNameCache.get(m.userId) || `User_${m.userId}`;
+      const md10 = computeMemberDelta(m.points, clan.name, m.userId, 10);
+      const md30 = computeMemberDelta(m.points, clan.name, m.userId, 30);
+      const md60 = computeMemberDelta(m.points, clan.name, m.userId, 60);
+      const fmd10 = formatDelta(md10);
+      const fmd30 = formatDelta(md30);
+      const fmd60 = formatDelta(md60);
+
+      html += `<div class="member-row">`;
+      html += `<div class="member-rank">${mi + 1}</div>`;
+      html += `<div class="member-name">${escapeHtml(mName)}</div>`;
+      html += `<div class="score">${formatNumber(m.points)}</div>`;
+      html += `<div class="delta m-delta-10 ${fmd10.cls}">${fmd10.text}</div>`;
+      html += `<div class="delta m-delta-30 ${fmd30.cls}">${fmd30.text}</div>`;
+      html += `<div class="delta m-delta-60 ${fmd60.cls}">${fmd60.text}</div>`;
+      html += `</div>`;
+    }
+
+    html += `</div></div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+function escapeHtml(str) {
+  const d = document.createElement("div");
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function toggleClan(idx) {
+  const row = document.querySelector(`.clan-row[data-idx="${idx}"]`);
+  if (row) row.classList.toggle("open");
+}
+
+function updateCountdown() {
+  const remaining = Math.max(0, nextRefreshAt - Date.now());
+  const mins = Math.floor(remaining / 60000);
+  const secs = Math.floor((remaining % 60000) / 1000);
+  document.getElementById("countdown").textContent =
+    `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+
+  if (remaining <= 0) {
+    clearInterval(countdownTimer);
+  }
+}
+
+async function refresh() {
+  const clans = await fetchAllData();
+  if (clans) {
+    renderLeaderboard(clans);
+    const now = new Date();
+    document.getElementById("lastUpdate").textContent =
+      now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }
+
+  nextRefreshAt = Date.now() + REFRESH_INTERVAL;
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = setInterval(updateCountdown, 1000);
+  updateCountdown();
+}
+
+async function init() {
+  await refresh();
+  setInterval(refresh, REFRESH_INTERVAL);
+}
+
+init();
+</script>
+</body>
+</html>
