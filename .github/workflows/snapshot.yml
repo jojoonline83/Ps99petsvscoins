@@ -1,0 +1,84 @@
+name: Snapshot Clan Battle Data
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  actions: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Skip if an older run is still in progress
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          other_ids=$(gh run list --repo "${{ github.repository }}" --workflow snapshot.yml --status in_progress --json databaseId --jq '.[].databaseId' | grep -v "^${{ github.run_id }}$" || true)
+          proceed=true
+          for id in $other_ids; do
+            if [ "$id" -lt "${{ github.run_id }}" ]; then
+              proceed=false
+            fi
+          done
+          if [ "$proceed" = "true" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "An older snapshot run is still in progress — skipping this dispatch."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Record and push snapshot (retries on conflict)
+        if: steps.guard.outputs.proceed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3 4 5; do
+            node .github/scripts/snapshot.mjs
+            git add history.json resolved_names.json
+            git diff --cached --quiet && exit 0
+            git commit -m "chore: snapshot clan battle data"
+            git push && exit 0
+            echo "Push rejected — retrying from latest main"
+            git reset --hard HEAD~1
+            git fetch origin main
+            git reset --hard origin/main
+          done
+          echo "::error::Failed to push snapshot after 5 attempts"
+          exit 1
+
+      - name: Setup Pages
+        if: steps.guard.outputs.proceed == 'true'
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        if: steps.guard.outputs.proceed == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        if: steps.guard.outputs.proceed == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - name: Wait before deploy retry
+        if: steps.guard.outputs.proceed == 'true' && steps.deployment.outcome == 'failure'
+        run: sleep 15
+
+      - name: Deploy to GitHub Pages (retry 1)
+        if: steps.guard.outputs.proceed == 'true' && steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v4
