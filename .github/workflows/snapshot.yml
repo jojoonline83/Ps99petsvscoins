@@ -7,19 +7,16 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
   actions: read
 
 jobs:
   snapshot:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
+      - name: Checkout gh-pages
         uses: actions/checkout@v4
+        with:
+          ref: gh-pages
 
       - name: Skip if an older run is still in progress
         id: guard
@@ -51,34 +48,10 @@ jobs:
             git diff --cached --quiet && exit 0
             git commit -m "chore: snapshot clan battle data"
             git push && exit 0
-            echo "Push rejected — retrying from latest ${GITHUB_REF_NAME}"
+            echo "Push rejected — retrying from latest gh-pages"
             git reset --hard HEAD~1
-            git fetch origin "${GITHUB_REF_NAME}"
-            git reset --hard "origin/${GITHUB_REF_NAME}"
+            git fetch origin gh-pages
+            git reset --hard origin/gh-pages
           done
           echo "::error::Failed to push snapshot after 5 attempts"
           exit 1
-
-      - name: Setup Pages
-        if: steps.guard.outputs.proceed == 'true'
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        if: steps.guard.outputs.proceed == 'true'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: '.'
-
-      - name: Deploy to GitHub Pages
-        if: steps.guard.outputs.proceed == 'true'
-        id: deployment
-        uses: actions/deploy-pages@v4
-        continue-on-error: true
-
-      - name: Wait before deploy retry
-        if: steps.guard.outputs.proceed == 'true' && steps.deployment.outcome == 'failure'
-        run: sleep 15
-
-      - name: Deploy to GitHub Pages (retry 1)
-        if: steps.guard.outputs.proceed == 'true' && steps.deployment.outcome == 'failure'
-        uses: actions/deploy-pages@v4
