@@ -5,7 +5,7 @@
 //
 // Retention is ~95 minutes (just past the 1hr delta window).
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 
 const API_BASE           = 'https://ps99.biggamesapi.io/api';
 const HISTORY_FILE       = 'history.json';
@@ -14,6 +14,34 @@ const RETENTION_MS       = 95 * 60 * 1000;
 const TOP_PAGES          = 2;     // 2 pages * 50 = 100 clans
 const PAGE_SIZE          = 50;
 const DETAIL_CONCURRENCY = 10;
+
+const MONITOR_PLAYER_NAMES = ['jojo8', 'wintheasura', 'doughboy', 'diskobull'];
+const MONITOR_DIR          = '.github/monitor-data';
+const MONITOR_STATE_FILE   = `${MONITOR_DIR}/monitor_alert_state.json`;
+
+function webhookUrls() {
+    return (process.env.DISCORD_WEBHOOK_URL || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+
+async function sendDiscordAlert(message) {
+    const urls = webhookUrls();
+    if (!urls.length) {
+        console.log(`Discord webhook not configured — would have alerted: ${message}`);
+        return;
+    }
+    for (const url of urls) {
+        try {
+            await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: message }),
+                signal: AbortSignal.timeout(10000),
+            });
+        } catch (err) {
+            console.log(`Discord alert failed for one webhook: ${err.message}`);
+        }
+    }
+}
 
 async function fetchJson(url, attempts = 3) {
     for (let i = 0; i < attempts; i++) {
@@ -229,5 +257,68 @@ history.push({ ts: now, clans });
 history = history.filter(entry => now - entry.ts <= RETENTION_MS);
 
 writeFileSync(HISTORY_FILE, JSON.stringify(history));
+console.log(`Snapshot recorded: ${clans.length} clans with roster detail, ${history.length} snapshots retained.`);
+
+// 5. Inactivity alerts for monitored players
+function findSnapshotNear(msAgo, toleranceMs) {
+    if (history.length < 2) return null;
+    const latest = history[history.length - 1];
+    const targetTs = latest.ts - msAgo;
+    const minAgeMs = msAgo / 2;
+    let best = null, bestDiff = Infinity;
+    for (const entry of history) {
+        if (entry === latest) continue;
+        if (latest.ts - entry.ts < minAgeMs) continue;
+        const diff = Math.abs(entry.ts - targetTs);
+        if (diff < bestDiff) { bestDiff = diff; best = entry; }
+    }
+    return best && bestDiff <= toleranceMs ? best : null;
+}
+
+if (!existsSync(MONITOR_DIR)) mkdirSync(MONITOR_DIR, { recursive: true });
+
+let alertState = {};
+if (existsSync(MONITOR_STATE_FILE)) {
+    try { alertState = JSON.parse(readFileSync(MONITOR_STATE_FILE, 'utf8')); } catch (_) { alertState = {}; }
+}
+
+const snap10 = findSnapshotNear(10 * 60_000, 11 * 60_000);
+const snap30 = findSnapshotNear(30 * 60_000, 8  * 60_000);
+const snap1h = findSnapshotNear(60 * 60_000, 12 * 60_000);
+
+const monitorSet = new Set(MONITOR_PLAYER_NAMES.map(n => n.toLowerCase()));
+const allPlayers = [];
+for (const clan of clans) {
+    for (const p of clan.roster) {
+        allPlayers.push({ ...p, Clan: clan.Name });
+    }
+}
+const monitoredPlayers = allPlayers.filter(p => monitorSet.has(p.DisplayName.toLowerCase()));
+
+for (const player of monitoredPlayers) {
+    const windows = [
+        { label: '10m', snap: snap10 },
+        { label: '30m', snap: snap30 },
+        { label: '1h',  snap: snap1h },
+    ];
+    for (const w of windows) {
+        if (!w.snap) continue;
+        const pastClan = w.snap.clans.find(c => c.Name === player.Clan);
+        const past = pastClan?.roster?.find(p => p.UserID === player.UserID)?.Points;
+        if (past == null) continue;
+
+        const key = `${player.UserID}:${w.label}`;
+        const isStalled = player.Points - past === 0;
+        if (isStalled && !alertState[key]) {
+            await sendDiscordAlert(`⚠️ **${player.DisplayName}** has earned 0 points over the last ${w.label} — possibly inactive (currently ${player.Points.toLocaleString()} pts, clan: ${player.Clan}).`);
+            alertState[key] = true;
+        } else if (!isStalled) {
+            alertState[key] = false;
+        }
+    }
+}
+writeFileSync(MONITOR_STATE_FILE, JSON.stringify(alertState));
+console.log(`Inactivity monitor: checked ${monitoredPlayers.length} player(s).`);
+
 const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
-console.log(`Snapshot recorded: ${clans.length} clans with roster detail in ${elapsedSec}s, ${history.length} snapshots retained.`);
+console.log(`Done in ${elapsedSec}s.`);
