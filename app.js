@@ -4,7 +4,7 @@
 
 'use strict';
 
-document.title = 'PS99 Clan Battle — Pets vs Coins [v3]';
+document.title = 'PS99 Clan Battle — Pets vs Coins [v4]';
 
 // ── Constants ──────────────────────────────
 const STORAGE_KEY  = 'ps99_clanbattle_v1';
@@ -207,10 +207,9 @@ function renderClanDetail() {
         ? `🔴 Live as of ${new Date(ui.livePointsAsOf).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
         : (latestSnapshot() ? `Snapshot as of ${new Date(latestSnapshot().ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — refreshing…` : '');
 
-    const T = 90 * 60_000;
-    const snap10 = renderDeltaStat('cd-delta-10m', detail, 10 * 60_000, T);
-    const snap30 = renderDeltaStat('cd-delta-30m', detail, 30 * 60_000, T);
-    const snap1h = renderDeltaStat('cd-delta-1h',  detail, 60 * 60_000, T);
+    const snap10 = renderDeltaStat('cd-delta-10m', detail, 10 * 60_000, 15 * 60_000);
+    const snap30 = renderDeltaStat('cd-delta-30m', detail, 30 * 60_000, 20 * 60_000);
+    const snap1h = renderDeltaStat('cd-delta-1h',  detail, 60 * 60_000, 30 * 60_000);
 
     const noteParts = [
         snap10 && `Δ10m ${formatAsOf(snap10)}`,
@@ -223,9 +222,9 @@ function renderClanDetail() {
     const roster = detail.roster || [];
     tbody.innerHTML = roster.length
         ? roster.map((p, idx) => {
-            const d10 = playerDelta(detail, p.UserID, p.Points, 10 * 60_000, T);
-            const d30 = playerDelta(detail, p.UserID, p.Points, 30 * 60_000, T);
-            const d1h = playerDelta(detail, p.UserID, p.Points, 60 * 60_000, T);
+            const d10 = playerDelta(detail, p.UserID, p.Points, 10 * 60_000, 15 * 60_000);
+            const d30 = playerDelta(detail, p.UserID, p.Points, 30 * 60_000, 20 * 60_000);
+            const d1h = playerDelta(detail, p.UserID, p.Points, 60 * 60_000, 30 * 60_000);
             return `
               <tr>
                 <td class="player-rank">${idx + 1}</td>
@@ -278,8 +277,7 @@ function findSnapshotNear(msAgo, toleranceMs) {
         if (diff < bestDiff) { bestDiff = diff; best = entry; }
     }
     if (best && bestDiff <= toleranceMs) return best;
-    if (!best) return null;
-    return best;
+    return null;
 }
 
 function findClanInSnapshot(snap, clanName) {
