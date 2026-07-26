@@ -4,7 +4,7 @@
 
 'use strict';
 
-document.title = 'PS99 Clan Battle — Pets vs Coins [v2]';
+document.title = 'PS99 Clan Battle — Pets vs Coins [v3]';
 
 // ── Constants ──────────────────────────────
 const STORAGE_KEY  = 'ps99_clanbattle_v1';
@@ -189,7 +189,10 @@ function renderClanDetail() {
         document.getElementById('cd-pts').textContent = '…';
         document.getElementById('cd-pts-asof').textContent = '';
         document.getElementById('cd-roster').textContent = '…';
-        document.getElementById('cd-delta-row').innerHTML = `<div class="stat-box"><span class="stat-label">Change</span><span class="stat-value">—</span></div>`;
+        ['cd-delta-10m', 'cd-delta-30m', 'cd-delta-1h'].forEach(id => {
+            document.getElementById(id).textContent = '—';
+            document.getElementById(`${id}-asof`).textContent = '';
+        });
         document.getElementById('roster-delta-note').textContent = '';
         document.getElementById('roster-tbody').innerHTML =
             `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">Loading roster…</td></tr>`;
@@ -204,66 +207,33 @@ function renderClanDetail() {
         ? `🔴 Live as of ${new Date(ui.livePointsAsOf).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
         : (latestSnapshot() ? `Snapshot as of ${new Date(latestSnapshot().ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — refreshing…` : '');
 
-    const compSnaps = getComparisonSnapshots();
-    const latest = latestSnapshot();
-    const deltaRow = document.getElementById('cd-delta-row');
+    const T = 90 * 60_000;
+    const snap10 = renderDeltaStat('cd-delta-10m', detail, 10 * 60_000, T);
+    const snap30 = renderDeltaStat('cd-delta-30m', detail, 30 * 60_000, T);
+    const snap1h = renderDeltaStat('cd-delta-1h',  detail, 60 * 60_000, T);
 
-    if (!compSnaps.length) {
-        deltaRow.innerHTML = `<div class="stat-box"><span class="stat-label">Change</span><span class="stat-value">—</span><span class="stat-asof">Waiting for more snapshots…</span></div>`;
-    } else {
-        deltaRow.innerHTML = compSnaps.map((snap, i) => {
-            const ageMs = latest.ts - snap.ts;
-            const label = `Last ${formatAge(ageMs)}`;
-            const entry = findClanInSnapshot(snap, detail.Name);
-            let valueHtml, titleAttr;
-            if (!entry) {
-                valueHtml = '—';
-                titleAttr = 'Clan not tracked at that time';
-            } else {
-                const delta = detail.Points - entry.Points;
-                const sign = delta >= 0 ? '+' : '−';
-                const clr = delta > 0 ? 'var(--success)' : (delta < 0 ? 'var(--danger)' : '');
-                valueHtml = `<span style="color:${clr}">${sign}${fmt(Math.abs(delta))}</span>`;
-                titleAttr = `From snapshot ${Math.round(ageMs / 60000)}m ago`;
-            }
-            return `<div class="stat-box" title="${titleAttr}"><span class="stat-label">${label}</span><span class="stat-value">${valueHtml}</span><span class="stat-asof">${formatAsOf(snap)}</span></div>`;
-        }).join('');
-    }
-
-    const noteParts = compSnaps.map((snap, i) => {
-        const ageMs = latest.ts - snap.ts;
-        return `Δ${formatAge(ageMs)} ${formatAsOf(snap)}`;
-    });
+    const noteParts = [
+        snap10 && `Δ10m ${formatAsOf(snap10)}`,
+        snap30 && `Δ30m ${formatAsOf(snap30)}`,
+        snap1h && `Δ1Hr ${formatAsOf(snap1h)}`,
+    ].filter(Boolean);
     document.getElementById('roster-delta-note').textContent = noteParts.length ? noteParts.join(' · ') : '';
-
-    compSnaps.forEach((snap, i) => {
-        const th = document.getElementById(`roster-th-d${i}`);
-        if (th) {
-            const ageMs = latest.ts - snap.ts;
-            th.textContent = `Δ${formatAge(ageMs)}`;
-        }
-    });
-    for (let i = compSnaps.length; i < 3; i++) {
-        const th = document.getElementById(`roster-th-d${i}`);
-        if (th) th.textContent = '';
-    }
 
     const tbody = document.getElementById('roster-tbody');
     const roster = detail.roster || [];
     tbody.innerHTML = roster.length
         ? roster.map((p, idx) => {
-            const deltas = [0, 1, 2].map(i => {
-                if (i >= compSnaps.length) return { text: '', color: '' };
-                return playerDeltaFromSnap(compSnaps[i], detail, p.UserID, p.Points);
-            });
+            const d10 = playerDelta(detail, p.UserID, p.Points, 10 * 60_000, T);
+            const d30 = playerDelta(detail, p.UserID, p.Points, 30 * 60_000, T);
+            const d1h = playerDelta(detail, p.UserID, p.Points, 60 * 60_000, T);
             return `
               <tr>
                 <td class="player-rank">${idx + 1}</td>
                 <td class="player-name">${esc(p.DisplayName)}</td>
                 <td class="player-points" style="color:${color}">${fmt(p.Points)}</td>
-                <td style="color:${deltas[0].color}">${deltas[0].text}</td>
-                <td style="color:${deltas[1].color}">${deltas[1].text}</td>
-                <td style="color:${deltas[2].color}">${deltas[2].text}</td>
+                <td style="color:${d10.color}">${d10.text}</td>
+                <td style="color:${d30.color}">${d30.text}</td>
+                <td style="color:${d1h.color}">${d1h.text}</td>
               </tr>`;
           }).join('')
         : `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">No roster data.</td></tr>`;
@@ -296,6 +266,22 @@ function hasRosterData(entry) {
     return entry.clans.length === 0 || entry.clans[0].roster !== undefined;
 }
 
+function findSnapshotNear(msAgo, toleranceMs) {
+    if (historyData.length < 2) return null;
+    const latest = historyData[historyData.length - 1];
+    const targetTs = latest.ts - msAgo;
+    let best = null, bestDiff = Infinity;
+    for (const entry of historyData) {
+        if (entry === latest) continue;
+        if (!hasRosterData(entry)) continue;
+        const diff = Math.abs(entry.ts - targetTs);
+        if (diff < bestDiff) { bestDiff = diff; best = entry; }
+    }
+    if (best && bestDiff <= toleranceMs) return best;
+    if (!best) return null;
+    return best;
+}
+
 function findClanInSnapshot(snap, clanName) {
     return snap.clans.find(c => c.Name.toLowerCase() === clanName.toLowerCase());
 }
@@ -304,35 +290,44 @@ function formatAsOf(snap) {
     return snap ? `as of ${new Date(snap.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '';
 }
 
-function formatAge(ms) {
-    const min = Math.round(ms / 60_000);
-    if (min < 60) return `${min}m`;
-    const hr = min / 60;
-    return hr === Math.floor(hr) ? `${hr}Hr` : `${hr.toFixed(1)}Hr`;
+function renderDeltaStat(elId, detail, windowMs, toleranceMs) {
+    const el = document.getElementById(elId);
+    const asOfEl = document.getElementById(`${elId}-asof`);
+    const snap = findSnapshotNear(windowMs, toleranceMs);
+    if (!snap) {
+        el.textContent = '—'; el.title = 'Not enough snapshot history yet';
+        if (asOfEl) asOfEl.textContent = '';
+        return null;
+    }
+
+    const entry = findClanInSnapshot(snap, detail.Name);
+    if (!entry) {
+        el.textContent = '—'; el.title = 'Clan was outside tracking at that time';
+        if (asOfEl) asOfEl.textContent = '';
+        return null;
+    }
+
+    const latest = latestSnapshot();
+    const ageMin = Math.round((latest.ts - snap.ts) / 60000);
+    const delta  = detail.Points - entry.Points;
+    const sign   = delta >= 0 ? '+' : '−';
+    el.textContent = `${sign}${fmt(Math.abs(delta))}`;
+    el.title       = `From snapshot ${ageMin}m ago`;
+    el.style.color = delta > 0 ? 'var(--success)' : (delta < 0 ? 'var(--danger)' : '');
+    if (asOfEl) asOfEl.textContent = `${ageMin}m ago`;
+    return snap;
 }
 
-function getComparisonSnapshots() {
-    if (historyData.length < 2) return [];
-    const latest = historyData[historyData.length - 1];
-    const older = historyData
-        .filter(e => e !== latest && hasRosterData(e))
-        .sort((a, b) => a.ts - b.ts);
-    if (!older.length) return [];
-    if (older.length <= 3) return older;
-    return [
-        older[older.length - 1],
-        older[Math.floor(older.length / 2)],
-        older[0],
-    ];
-}
-
-function playerDeltaFromSnap(snap, detail, userId, currentPoints) {
+function playerDelta(detail, userId, currentPoints, windowMs, toleranceMs) {
+    const snap = findSnapshotNear(windowMs, toleranceMs);
     if (!snap) return { text: '—', color: '' };
+
     const clan = findClanInSnapshot(snap, detail.Name);
     const past = clan?.roster?.find(p => p.UserID === userId)?.Points;
     if (past === undefined) return { text: '—', color: '' };
+
     const delta = currentPoints - past;
-    const sign = delta >= 0 ? '+' : '−';
+    const sign  = delta >= 0 ? '+' : '−';
     return {
         text: `${sign}${fmt(Math.abs(delta))}`,
         color: delta > 0 ? 'var(--success)' : (delta < 0 ? 'var(--danger)' : ''),
