@@ -54,11 +54,12 @@ function extractPlayers(snapshot) {
             }
         }
     }
-    return [...playerMap.values()].sort((a, b) => b.Points - a.Points);
+    const sorted = [...playerMap.values()].sort((a, b) => b.Points - a.Points);
+    return { list: sorted, byId: playerMap };
 }
 
 function latestPlayerSnapshot() { return playerSnapshots.length ? playerSnapshots[playerSnapshots.length - 1] : null; }
-function allPlayers() { return latestPlayerSnapshot()?.players || []; }
+function allPlayers() { return latestPlayerSnapshot()?.players?.list || []; }
 function topPlayers() { return allPlayers().slice(0, DISPLAY_LIMIT); }
 function displayedPlayers() { return state.mode === 'search' ? state.searchResults : topPlayers(); }
 
@@ -89,9 +90,9 @@ function findSnapshotNear(msAgo, toleranceMs) {
 function playerDelta(userId, currentPoints, windowMs, toleranceMs) {
     const snap = findSnapshotNear(windowMs, toleranceMs);
     if (!snap) return { text: '—', color: '', value: null };
-    const past = snap.players?.find(p => p.UserID === userId)?.Points;
-    if (past === undefined) return { text: '—', color: '', value: null };
-    const delta = currentPoints - past;
+    const pastEntry = snap.players?.byId?.get(userId);
+    if (!pastEntry) return { text: '—', color: '', value: null };
+    const delta = currentPoints - pastEntry.Points;
     const sign = delta >= 0 ? '+' : '−';
     return {
         text: `${sign}${fmt(Math.abs(delta))}`,
@@ -114,10 +115,12 @@ function renderSummaryStats() {
         const snap = findSnapshotNear(w.ms, w.tol);
         const el = document.getElementById(w.id);
         if (!snap) { el.textContent = '—'; continue; }
+        const pastMap = snap.players?.byId;
+        if (!pastMap) { el.textContent = '—'; continue; }
         let zeroCount = 0;
         for (const p of players) {
-            const past = snap.players?.find(x => x.UserID === p.UserID)?.Points;
-            if (past !== undefined && p.Points - past === 0) zeroCount++;
+            const pastEntry = pastMap.get(p.UserID);
+            if (pastEntry && p.Points - pastEntry.Points === 0) zeroCount++;
         }
         el.textContent = fmt(zeroCount);
     }
@@ -212,9 +215,9 @@ function renderPlayerDetail(userId) {
     const rows = [];
     for (let i = playerSnapshots.length - 1; i >= 0; i--) {
         const snap = playerSnapshots[i];
-        const entry = snap.players?.find(p => p.UserID === userId);
+        const entry = snap.players?.byId?.get(userId);
         if (!entry) continue;
-        const prev = i > 0 ? playerSnapshots[i - 1].players?.find(p => p.UserID === userId) : null;
+        const prev = i > 0 ? playerSnapshots[i - 1].players?.byId?.get(userId) : null;
         const change = prev ? entry.Points - prev.Points : null;
         rows.push({ ts: snap.ts, points: entry.Points, change });
     }
