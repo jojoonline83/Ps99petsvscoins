@@ -1,4 +1,4 @@
-// Snapshots the Top 100 clan battle leaderboard (sorted by Points desc),
+// Snapshots the Top 500 clan battle leaderboard (sorted by Points desc),
 // including each clan's full roster and per-player point contributions,
 // so the static site can compute per-clan AND per-player point deltas
 // without a backend.
@@ -11,7 +11,7 @@ const API_BASE           = 'https://ps99.biggamesapi.io/api';
 const HISTORY_FILE       = 'history.json';
 const RESOLVED_CACHE_FILE = 'resolved_names.json';
 const RETENTION_MS       = 95 * 60 * 1000;
-const TOP_PAGES          = 2;     // 2 pages * 50 = 100 clans
+const TOP_PAGES          = 10;    // 10 pages * 50 = 500 clans
 const PAGE_SIZE          = 50;
 const DETAIL_CONCURRENCY = 10;
 
@@ -170,9 +170,9 @@ for (let page = 1; page <= TOP_PAGES; page++) {
             Points: asNumber(firstDefined(raw.Points, raw.points, raw.Score, raw.score, raw.Total, raw.total)),
             Members: asNumber(firstDefined(raw.Members, raw.members, raw.MemberCount, raw.memberCount)),
         });
-        if (summaries.length >= 100) break;
+        if (summaries.length >= 500) break;
     }
-    if (summaries.length >= 100) break;
+    if (summaries.length >= 500) break;
 }
 
 if (!summaries.length) {

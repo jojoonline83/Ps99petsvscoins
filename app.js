@@ -142,7 +142,7 @@ function renderLeaderboard() {
     document.getElementById('leaderboard-heading').textContent =
         state.mode === 'search'
             ? `Search Results (${state.total} match${state.total === 1 ? '' : 'es'})`
-            : 'Top 100';
+            : 'Top 500';
 
     document.getElementById('clear-search-btn').style.display = state.mode === 'search' ? 'inline-block' : 'none';
 
@@ -397,7 +397,7 @@ async function searchClans() {
                 state.total = matches.length;
                 save();
                 renderLeaderboard();
-                setStatus(`✅ Found ${matches.length} clan(s) matching "${esc(query)}" in Top 100.`, 'success');
+                setStatus(`✅ Found ${matches.length} clan(s) matching "${esc(query)}" in Top 500.`, 'success');
             } else {
                 setStatus(`❌ Clan "${esc(query)}" not found.`, 'error');
             }
