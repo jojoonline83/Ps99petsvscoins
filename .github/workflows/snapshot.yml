@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   snapshot:
+    if: false
     runs-on: ubuntu-latest
     steps:
       - name: Checkout gh-pages
