@@ -21,7 +21,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin gh-pages || true
           git checkout gh-pages
-          git checkout ${{ github.sha }} -- index.html players.html style.css app.js players.js .nojekyll .github/scripts/snapshot.mjs .github/workflows/snapshot.yml .github/workflows/deploy.yml
+          git checkout ${{ github.sha }} -- index.html players.html league.html transcend.html style.css app.js players.js league.js transcend.js .nojekyll .github/scripts/snapshot.mjs .github/scripts/league_snapshot.mjs .github/workflows/snapshot.yml .github/workflows/league_snapshot.yml .github/workflows/deploy.yml
           git add -A
           git diff --cached --quiet && echo "No changes to deploy" && exit 0
           git commit -m "deploy: sync from ${{ github.ref_name }}"

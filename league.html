@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>PS99 League Tracker</title>
+    <link rel="stylesheet" href="style.css?v=5">
+    <script>
+    (function(){
+        var V = 1;
+        var k = '_ps99cb_league_v';
+        var stored = localStorage.getItem(k);
+        localStorage.setItem(k, V);
+        if (stored && stored !== String(V)) {
+            var url = location.href.split('?')[0] + '?nocache=' + V;
+            location.replace(url);
+        }
+    })();
+    </script>
+</head>
+<body>
+
+<header>
+    <div class="header-content">
+        <div class="logo">
+            <span class="logo-icon">🏆</span>
+            <h1>PS99 League Tracker</h1>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+            <span id="event-status-badge"></span>
+            <button class="btn-refresh" id="refresh-btn">🔄 Refresh</button>
+        </div>
+    </div>
+</header>
+
+<main>
+
+    <!-- Leaderboard View -->
+    <div id="leaderboard-view" class="view active">
+        <div class="event-info-bar">
+            <div>
+                <div class="event-title">Leagues Leaderboard</div>
+                <div class="event-dates">Top 500 leagues — refreshed every ~10 minutes</div>
+            </div>
+        </div>
+
+        <div class="manage-card live-card">
+            <div class="manage-card-header">
+                <h3>🔍 Search League</h3>
+                <span class="live-dot"></span>
+            </div>
+            <p class="live-desc">Search any league by name (live API search, works outside Top 500).</p>
+            <div class="live-manual">
+                <input type="text" id="search-league-name" class="live-input" placeholder="Enter league name">
+                <button class="btn-live-secondary" id="search-league-btn">Search</button>
+                <button class="btn-secondary" id="clear-search-btn" style="display:none">Clear</button>
+            </div>
+            <div id="search-status" class="import-status"></div>
+        </div>
+
+        <h3 class="sub-heading" id="leaderboard-heading">Top 500</h3>
+        <div class="players-table-container">
+            <table class="players-table">
+                <thead>
+                    <tr><th>#</th><th>League</th><th>Members</th><th>Points</th></tr>
+                </thead>
+                <tbody id="leaderboard-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- League Detail View -->
+    <div id="league-detail-view" class="view">
+        <div class="detail-top-bar">
+            <button class="back-btn" id="league-back-btn">&larr; Back to Leaderboard</button>
+        </div>
+        <div class="team-detail-header">
+            <div class="team-detail-title-row">
+                <div class="team-detail-color-bar" id="league-detail-color-bar"></div>
+                <div>
+                    <h2 id="league-detail-name"></h2>
+                    <div id="league-detail-sub" class="team-detail-sub-line"></div>
+                </div>
+            </div>
+            <div class="team-detail-stats">
+                <div class="stat-box"><span class="stat-label">Rank</span><span class="stat-value" id="ld-rank"></span></div>
+                <div class="stat-box"><span class="stat-label">Points</span><span class="stat-value" id="ld-pts"></span><span class="stat-asof" id="ld-pts-asof"></span></div>
+                <div class="stat-box"><span class="stat-label">Roster</span><span class="stat-value" id="ld-roster"></span></div>
+                <div class="stat-box"><span class="stat-label">Level</span><span class="stat-value" id="ld-level"></span></div>
+            </div>
+            <div class="team-detail-stats" style="margin-top:16px">
+                <div class="stat-box"><span class="stat-label">Last 10m</span><span class="stat-value" id="ld-delta-10m">&mdash;</span><span class="stat-asof" id="ld-delta-10m-asof"></span></div>
+                <div class="stat-box"><span class="stat-label">Last 30m</span><span class="stat-value" id="ld-delta-30m">&mdash;</span><span class="stat-asof" id="ld-delta-30m-asof"></span></div>
+                <div class="stat-box"><span class="stat-label">Last 1h</span><span class="stat-value" id="ld-delta-1h">&mdash;</span><span class="stat-asof" id="ld-delta-1h-asof"></span></div>
+            </div>
+        </div>
+        <h3 class="sub-heading">Roster</h3>
+        <div class="roster-delta-note" id="roster-delta-note"></div>
+        <div class="players-table-container">
+            <table class="players-table roster-table">
+                <thead>
+                    <tr><th>Role</th><th>Display Name</th><th>Points</th><th>Δ10m</th><th>Δ30m</th><th>Δ1Hr</th></tr>
+                </thead>
+                <tbody id="roster-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script src="league.js?v=1"></script>
+</body>
+</html>
