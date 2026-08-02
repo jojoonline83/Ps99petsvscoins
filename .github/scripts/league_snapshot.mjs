@@ -6,7 +6,7 @@ const RESOLVED_CACHE_FILE = 'resolved_names.json';
 const RETENTION_MS       = 95 * 60 * 1000;
 const TOP_PAGES          = 10;    // 10 pages * 100 = 1000 leagues
 const PAGE_SIZE          = 100;
-const DETAIL_CONCURRENCY = 25;
+const DETAIL_CONCURRENCY = 15;
 
 async function fetchJson(url, attempts = 3) {
     for (let i = 0; i < attempts; i++) {
@@ -157,6 +157,31 @@ const leagues = await mapWithConcurrency(summaries, DETAIL_CONCURRENCY, async su
         roster,
     };
 });
+
+// 2b. Retry leagues with empty rosters
+const emptyIdxs = leagues.map((l, i) => l.roster.length === 0 ? i : -1).filter(i => i >= 0);
+if (emptyIdxs.length) {
+    console.log(`Retrying ${emptyIdxs.length} leagues with empty rosters…`);
+    await mapWithConcurrency(emptyIdxs, 10, async idx => {
+        const summary = leagues[idx];
+        const detailJson = await fetchJson(`${API_BASE}/leagues/${encodeURIComponent(summary.Name)}`);
+        const detail = detailJson?.data;
+        if (!detail) return;
+        const contribByUser = {};
+        (detail.PointContributions || []).forEach(c => { contribByUser[c.UserID] = c.Points; });
+        const roster = [];
+        if (detail.Owner?.UserID) {
+            roster.push({ UserID: detail.Owner.UserID, DisplayName: detail.Owner.DisplayName || String(detail.Owner.UserID), Points: contribByUser[detail.Owner.UserID] ?? 0, Role: 'Owner' });
+        }
+        for (const m of (detail.Members || [])) {
+            roster.push({ UserID: m.UserID, DisplayName: m.DisplayName || String(m.UserID), Points: contribByUser[m.UserID] ?? 0, Role: 'Member' });
+        }
+        roster.sort((a, b) => b.Points - a.Points);
+        leagues[idx] = { ID: detail.ID || summary.ID, Name: detail.Name || summary.Name, Points: detail.Points || summary.Points, Members: roster.length, MemberCapacity: detail.MemberCapacity || summary.MemberCapacity, Level: detail.Level ?? summary.Level, roster };
+    });
+    const stillEmpty = leagues.filter(l => l.roster.length === 0).length;
+    console.log(`After retry: ${stillEmpty} leagues still have empty rosters.`);
+}
 
 // 3. Resolve numeric display names via Roblox API
 let resolvedCache = {};

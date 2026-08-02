@@ -189,9 +189,9 @@ function renderLeaderboard() {
 
     tbody.innerHTML = list.map((p, idx) => {
         const color = colorFor(p.UserID);
-        const d10 = playerDelta(p.UserID, p.Points, 10 * 60_000, 11 * 60_000);
-        const d30 = playerDelta(p.UserID, p.Points, 30 * 60_000, 8  * 60_000);
-        const d1h = playerDelta(p.UserID, p.Points, 60 * 60_000, 12 * 60_000);
+        const d10 = playerDelta(p.UserID, p.Points, 10 * 60_000, 15 * 60_000);
+        const d30 = playerDelta(p.UserID, p.Points, 30 * 60_000, 15 * 60_000);
+        const d1h = playerDelta(p.UserID, p.Points, 60 * 60_000, 20 * 60_000);
         return `
       <tr onclick="showPlayerDetail(${p.UserID})" style="cursor:pointer">
         <td class="player-rank">${idx + 1}</td>
@@ -224,9 +224,9 @@ function renderPlayerDetail(userId) {
     document.getElementById('pd-pts').textContent = fmt(player.Points);
     document.getElementById('pd-league').textContent = player.Clan || '—';
 
-    const d10 = playerDelta(userId, player.Points, 10 * 60_000, 11 * 60_000);
-    const d30 = playerDelta(userId, player.Points, 30 * 60_000, 8  * 60_000);
-    const d1h = playerDelta(userId, player.Points, 60 * 60_000, 12 * 60_000);
+    const d10 = playerDelta(userId, player.Points, 10 * 60_000, 15 * 60_000);
+    const d30 = playerDelta(userId, player.Points, 30 * 60_000, 15 * 60_000);
+    const d1h = playerDelta(userId, player.Points, 60 * 60_000, 20 * 60_000);
 
     const el10 = document.getElementById('pd-delta-10m');
     const el30 = document.getElementById('pd-delta-30m');

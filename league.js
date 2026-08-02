@@ -173,11 +173,22 @@ function renderDeltaStat(elId, detail, windowMs, toleranceMs) {
 }
 
 function playerDelta(detail, userId, currentPoints, windowMs, toleranceMs) {
-    const snap = findSnapshotNear(windowMs, toleranceMs);
-    if (!snap) return { text: '—', color: '' };
-    const league = findLeagueInSnapshot(snap, detail.ID, detail.Name);
-    const past = league?.roster?.find(p => p.UserID === userId)?.Points;
-    if (past === undefined) return { text: '—', color: '' };
+    if (historyData.length < 2) return { text: '—', color: '' };
+    const latest = historyData[historyData.length - 1];
+    const targetTs = latest.ts - windowMs;
+    const minAgeMs = windowMs / 2;
+    let best = null, bestDiff = Infinity;
+    for (const entry of historyData) {
+        if (entry === latest) continue;
+        if (latest.ts - entry.ts < minAgeMs) continue;
+        const league = findLeagueInSnapshot(entry, detail.ID, detail.Name);
+        if (!league?.roster?.find(p => p.UserID === userId)) continue;
+        const diff = Math.abs(entry.ts - targetTs);
+        if (diff < bestDiff) { bestDiff = diff; best = entry; }
+    }
+    if (!best || bestDiff > toleranceMs) return { text: '—', color: '' };
+    const pastLeague = findLeagueInSnapshot(best, detail.ID, detail.Name);
+    const past = pastLeague.roster.find(p => p.UserID === userId).Points;
     const delta = currentPoints - past;
     const sign = delta >= 0 ? '+' : '−';
     return {
@@ -211,9 +222,9 @@ function renderLeaderboard() {
 
     tbody.innerHTML = list.map((l, idx) => {
         const color = colorFor(l.Name);
-        const d10 = leagueDelta(l, 10 * 60_000, 11 * 60_000);
-        const d30 = leagueDelta(l, 30 * 60_000, 8  * 60_000);
-        const d1h = leagueDelta(l, 60 * 60_000, 12 * 60_000);
+        const d10 = leagueDelta(l, 10 * 60_000, 15 * 60_000);
+        const d30 = leagueDelta(l, 30 * 60_000, 15 * 60_000);
+        const d1h = leagueDelta(l, 60 * 60_000, 20 * 60_000);
         return `
       <tr onclick="showLeagueDetail('${esc(l.Name).replace(/'/g, "\\'")}')" style="cursor:pointer">
         <td class="player-rank">${idx + 1}</td>
@@ -263,9 +274,9 @@ function renderLeagueDetail() {
         ? `Live as of ${new Date(ui.livePointsAsOf).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
         : (latestSnapshot() ? `Snapshot as of ${new Date(latestSnapshot().ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '');
 
-    const snap10 = renderDeltaStat('ld-delta-10m', detail, 10 * 60_000, 11 * 60_000);
-    const snap30 = renderDeltaStat('ld-delta-30m', detail, 30 * 60_000, 8  * 60_000);
-    const snap1h = renderDeltaStat('ld-delta-1h',  detail, 60 * 60_000, 12 * 60_000);
+    const snap10 = renderDeltaStat('ld-delta-10m', detail, 10 * 60_000, 15 * 60_000);
+    const snap30 = renderDeltaStat('ld-delta-30m', detail, 30 * 60_000, 15 * 60_000);
+    const snap1h = renderDeltaStat('ld-delta-1h',  detail, 60 * 60_000, 20 * 60_000);
 
     const noteParts = [
         snap10 && `10m ${formatAsOf(snap10)}`,
@@ -278,9 +289,9 @@ function renderLeagueDetail() {
     const tbody = document.getElementById('roster-tbody');
     tbody.innerHTML = detail.roster.length
         ? detail.roster.map(p => {
-            const d10 = playerDelta(detail, p.UserID, p.Points, 10 * 60_000, 11 * 60_000);
-            const d30 = playerDelta(detail, p.UserID, p.Points, 30 * 60_000, 8  * 60_000);
-            const d1h = playerDelta(detail, p.UserID, p.Points, 60 * 60_000, 12 * 60_000);
+            const d10 = playerDelta(detail, p.UserID, p.Points, 10 * 60_000, 15 * 60_000);
+            const d30 = playerDelta(detail, p.UserID, p.Points, 30 * 60_000, 15 * 60_000);
+            const d1h = playerDelta(detail, p.UserID, p.Points, 60 * 60_000, 20 * 60_000);
             return `
               <tr>
                 <td>${roleLabel(p.Role)}</td>
