@@ -56,8 +56,24 @@ function extractPlayers(snapshot) {
     return { list: sorted, byId: playerMap };
 }
 
+let mergedPlayerData = { list: [], byId: new Map() };
+
+function buildMergedPlayers() {
+    const playerMap = new Map();
+    for (const snap of playerSnapshots) {
+        for (const [uid, p] of (snap.players?.byId || new Map())) {
+            const existing = playerMap.get(uid);
+            if (!existing || p.Points > existing.Points) {
+                playerMap.set(uid, { ...p });
+            }
+        }
+    }
+    const sorted = [...playerMap.values()].sort((a, b) => b.Points - a.Points);
+    mergedPlayerData = { list: sorted, byId: playerMap };
+}
+
 function latestPlayerSnapshot() { return playerSnapshots.length ? playerSnapshots[playerSnapshots.length - 1] : null; }
-function allPlayers() { return latestPlayerSnapshot()?.players?.list || []; }
+function allPlayers() { return mergedPlayerData.list; }
 function topPlayers() { return allPlayers().slice(0, DISPLAY_LIMIT); }
 function displayedPlayers() { return state.mode === 'search' ? state.searchResults : topPlayers(); }
 
@@ -86,10 +102,20 @@ function findSnapshotNear(msAgo, toleranceMs) {
 }
 
 function playerDelta(userId, currentPoints, windowMs, toleranceMs) {
-    const snap = findSnapshotNear(windowMs, toleranceMs);
-    if (!snap) return { text: '—', color: '', value: null };
-    const pastEntry = snap.players?.byId?.get(userId);
-    if (!pastEntry) return { text: '—', color: '', value: null };
+    if (playerSnapshots.length < 2) return { text: '—', color: '', value: null };
+    const latest = playerSnapshots[playerSnapshots.length - 1];
+    const targetTs = latest.ts - windowMs;
+    const minAgeMs = windowMs / 2;
+    let best = null, bestDiff = Infinity;
+    for (const entry of playerSnapshots) {
+        if (entry === latest) continue;
+        if (latest.ts - entry.ts < minAgeMs) continue;
+        if (!entry.players?.byId?.has(userId)) continue;
+        const diff = Math.abs(entry.ts - targetTs);
+        if (diff < bestDiff) { bestDiff = diff; best = entry; }
+    }
+    if (!best || bestDiff > toleranceMs) return { text: '—', color: '', value: null };
+    const pastEntry = best.players.byId.get(userId);
     const delta = currentPoints - pastEntry.Points;
     const sign = delta >= 0 ? '+' : '−';
     return {
@@ -401,6 +427,7 @@ async function loadHistory() {
             ts: snap.ts,
             players: extractPlayers(snap),
         }));
+        buildMergedPlayers();
     }
 }
 
