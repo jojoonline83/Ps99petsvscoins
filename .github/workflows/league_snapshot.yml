@@ -53,7 +53,7 @@ jobs:
             return 1
           }
 
-          ROUNDS=9
+          ROUNDS=5
           for round in $(seq 1 $ROUNDS); do
             echo "=== Round $round/$ROUNDS at $(date -u +%H:%M:%S) ==="
             take_snapshot || true

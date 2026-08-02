@@ -86,7 +86,7 @@ async function resolveUsernames(userIds) {
 
 const startedAt = Date.now();
 
-// 1. Fetch top 500 league summaries
+// 1. Fetch top 1000 league summaries
 const summaries = [];
 for (let page = 1; page <= TOP_PAGES; page++) {
     const json = await fetchJson(`${API_BASE}/leagues?page=${page}&pageSize=${PAGE_SIZE}&sort=Points&sortOrder=desc`);
@@ -103,7 +103,7 @@ for (let page = 1; page <= TOP_PAGES; page++) {
         });
         if (summaries.length >= 1000) break;
     }
-    if (summaries.length >= 500) break;
+    if (summaries.length >= 1000) break;
 }
 
 if (!summaries.length) {
