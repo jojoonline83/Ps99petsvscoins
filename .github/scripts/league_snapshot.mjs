@@ -4,7 +4,7 @@ const API_BASE           = 'https://ps99.biggamesapi.io/v1';
 const HISTORY_FILE       = 'league_history.json';
 const RESOLVED_CACHE_FILE = 'resolved_names.json';
 const RETENTION_MS       = 95 * 60 * 1000;
-const TOP_PAGES          = 5;     // 5 pages * 100 = 500 leagues
+const TOP_PAGES          = 10;    // 10 pages * 100 = 1000 leagues
 const PAGE_SIZE          = 100;
 const DETAIL_CONCURRENCY = 25;
 
@@ -86,7 +86,7 @@ async function resolveUsernames(userIds) {
 
 const startedAt = Date.now();
 
-// 1. Fetch top 500 league summaries
+// 1. Fetch top 1000 league summaries
 const summaries = [];
 for (let page = 1; page <= TOP_PAGES; page++) {
     const json = await fetchJson(`${API_BASE}/leagues?page=${page}&pageSize=${PAGE_SIZE}&sort=Points&sortOrder=desc`);
@@ -101,9 +101,9 @@ for (let page = 1; page <= TOP_PAGES; page++) {
             MemberCapacity: l.MemberCapacity || 0,
             Level: l.Level || 0,
         });
-        if (summaries.length >= 500) break;
+        if (summaries.length >= 1000) break;
     }
-    if (summaries.length >= 500) break;
+    if (summaries.length >= 1000) break;
 }
 
 if (!summaries.length) {
