@@ -31,8 +31,10 @@ jobs:
             echo "proceed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Snapshot loop (every 10 min for ~90 min)
+      - name: Snapshot loop (every 10 min for ~50 min)
         if: steps.guard.outputs.proceed == 'true'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -40,7 +42,8 @@ jobs:
           take_snapshot() {
             for attempt in 1 2 3 4 5; do
               node .github/scripts/league_snapshot.mjs
-              git add league_history.json resolved_names.json
+              node .github/scripts/discord_alert.mjs || echo "::warning::Discord alert failed"
+              git add league_history.json resolved_names.json alert_state.json
               git diff --cached --quiet && return 0
               git commit -m "chore: snapshot league data"
               git push && return 0
