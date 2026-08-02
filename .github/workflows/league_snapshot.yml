@@ -18,40 +18,50 @@ jobs:
         with:
           ref: gh-pages
 
-      - name: Skip if an older run is still in progress
+      - name: Skip if another run is already looping
         id: guard
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           other_ids=$(gh run list --repo "${{ github.repository }}" --workflow league_snapshot.yml --status in_progress --json databaseId --jq '.[].databaseId' | grep -v "^${{ github.run_id }}$" || true)
-          proceed=true
-          for id in $other_ids; do
-            if [ "$id" -lt "${{ github.run_id }}" ]; then
-              proceed=false
-            fi
-          done
-          if [ "$proceed" = "true" ]; then
-            echo "proceed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "An older league snapshot run is still in progress — skipping this dispatch."
+          if [ -n "$other_ids" ]; then
+            echo "Another league snapshot run is already in progress — skipping."
             echo "proceed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Record and push snapshot (retries on conflict)
+      - name: Snapshot loop (every 10 min for ~90 min)
         if: steps.guard.outputs.proceed == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          for i in 1 2 3 4 5; do
-            node .github/scripts/league_snapshot.mjs
-            git add league_history.json resolved_names.json
-            git diff --cached --quiet && exit 0
-            git commit -m "chore: snapshot league data"
-            git push && exit 0
-            echo "Push rejected — retrying from latest gh-pages"
-            git reset --hard HEAD~1
-            git fetch origin gh-pages
-            git reset --hard origin/gh-pages
+
+          take_snapshot() {
+            for attempt in 1 2 3 4 5; do
+              node .github/scripts/league_snapshot.mjs
+              git add league_history.json resolved_names.json
+              git diff --cached --quiet && return 0
+              git commit -m "chore: snapshot league data"
+              git push && return 0
+              echo "Push rejected — retrying from latest gh-pages"
+              git reset --hard HEAD~1
+              git fetch origin gh-pages
+              git reset --hard origin/gh-pages
+            done
+            echo "::warning::Snapshot push failed after 5 attempts"
+            return 1
+          }
+
+          ROUNDS=9
+          for round in $(seq 1 $ROUNDS); do
+            echo "=== Round $round/$ROUNDS at $(date -u +%H:%M:%S) ==="
+            take_snapshot || true
+            if [ "$round" -lt "$ROUNDS" ]; then
+              echo "Sleeping 10 minutes…"
+              sleep 600
+              git fetch origin gh-pages
+              git reset --hard origin/gh-pages
+            fi
           done
-          echo "::error::Failed to push league snapshot after 5 attempts"
-          exit 1
+          echo "=== Done: $ROUNDS snapshots taken ==="
