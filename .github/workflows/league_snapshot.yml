@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     concurrency:
       group: league-snapshot
-      cancel-in-progress: false
+      cancel-in-progress: true
     steps:
       - name: Checkout gh-pages
         uses: actions/checkout@v4
