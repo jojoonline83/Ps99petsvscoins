@@ -1,4 +1,4 @@
-// Snapshots the Top 100 clan battle leaderboard (sorted by Points desc),
+// Snapshots the Top 500 clan battle leaderboard (sorted by Points desc),
 // including each clan's full roster and per-player point contributions,
 // so the static site can compute per-clan AND per-player point deltas
 // without a backend.
@@ -11,9 +11,9 @@ const API_BASE           = 'https://ps99.biggamesapi.io/api';
 const HISTORY_FILE       = 'history.json';
 const RESOLVED_CACHE_FILE = 'resolved_names.json';
 const RETENTION_MS       = 95 * 60 * 1000;
-const TOP_PAGES          = 2;     // 2 pages * 50 = 100 clans
+const TOP_PAGES          = 10;    // 10 pages * 50 = 500 clans
 const PAGE_SIZE          = 50;
-const DETAIL_CONCURRENCY = 10;
+const DETAIL_CONCURRENCY = 25;
 
 async function fetchJson(url, attempts = 3) {
     for (let i = 0; i < attempts; i++) {
@@ -114,14 +114,14 @@ function buildClanFromDetail(detail, summary) {
 async function resolveUsernames(userIds) {
     const map = {};
     const ROBLOX_URL = 'https://users.roblox.com/v1/users';
-    let failedBatches = 0;
-
+    const batches = [];
     for (let i = 0; i < userIds.length; i += 100) {
         const batch = userIds.slice(i, i + 100);
-        if (!batch.length) continue;
+        if (batch.length) batches.push(batch);
+    }
 
-        let ok = false;
-        for (let attempt = 1; attempt <= 4 && !ok; attempt++) {
+    async function resolveBatch(batch) {
+        for (let attempt = 1; attempt <= 4; attempt++) {
             try {
                 const res = await fetch(ROBLOX_URL, {
                     method: 'POST',
@@ -132,12 +132,11 @@ async function resolveUsernames(userIds) {
                 if (res.ok) {
                     const json = await res.json();
                     const data = json.data || [];
-                    if (data.length === 0) {
-                        await new Promise(r => setTimeout(r, 1500 * attempt));
-                    } else {
+                    if (data.length > 0) {
                         data.forEach(u => { map[u.id] = u.displayName || u.name; });
-                        ok = true;
+                        return true;
                     }
+                    await new Promise(r => setTimeout(r, 1500 * attempt));
                 } else if (res.status === 429) {
                     const retryAfter = Number(res.headers.get('retry-after')) || 0;
                     await new Promise(r => setTimeout(r, Math.max(retryAfter * 1000, 1500 * attempt)));
@@ -148,10 +147,11 @@ async function resolveUsernames(userIds) {
                 await new Promise(r => setTimeout(r, 500 * attempt));
             }
         }
-        if (!ok) failedBatches++;
-        await new Promise(r => setTimeout(r, 500));
+        return false;
     }
 
+    const results = await mapWithConcurrency(batches, 5, resolveBatch);
+    const failedBatches = results.filter(ok => !ok).length;
     if (failedBatches) console.log(`resolveUsernames: ${failedBatches} batch(es) never succeeded after retries.`);
     return map;
 }
@@ -170,9 +170,9 @@ for (let page = 1; page <= TOP_PAGES; page++) {
             Points: asNumber(firstDefined(raw.Points, raw.points, raw.Score, raw.score, raw.Total, raw.total)),
             Members: asNumber(firstDefined(raw.Members, raw.members, raw.MemberCount, raw.memberCount)),
         });
-        if (summaries.length >= 100) break;
+        if (summaries.length >= 500) break;
     }
-    if (summaries.length >= 100) break;
+    if (summaries.length >= 500) break;
 }
 
 if (!summaries.length) {
