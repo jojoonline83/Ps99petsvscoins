@@ -7,64 +7,41 @@ on:
 
 permissions:
   contents: write
-  actions: read
 
 jobs:
   snapshot:
     runs-on: ubuntu-latest
+    concurrency:
+      group: league-snapshot
+      cancel-in-progress: false
     steps:
       - name: Checkout gh-pages
         uses: actions/checkout@v4
         with:
           ref: gh-pages
 
-      - name: Skip if another run is already looping
-        id: guard
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          other_ids=$(gh run list --repo "${{ github.repository }}" --workflow league_snapshot.yml --status in_progress --json databaseId --jq '.[].databaseId' | grep -v "^${{ github.run_id }}$" || true)
-          if [ -n "$other_ids" ]; then
-            echo "Another league snapshot run is already in progress — skipping."
-            echo "proceed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "proceed=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Snapshot loop (every 10 min for ~50 min)
-        if: steps.guard.outputs.proceed == 'true'
+      - name: Take snapshot
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          take_snapshot() {
-            for attempt in 1 2 3 4 5; do
-              node .github/scripts/league_snapshot.mjs
-              node .github/scripts/discord_alert.mjs || echo "::warning::Discord alert failed"
-              git add league_history.json resolved_names.json alert_state.json
-              git diff --cached --quiet && return 0
-              git commit -m "chore: snapshot league data"
-              git push && return 0
-              echo "Push rejected — retrying from latest gh-pages"
-              git reset --hard HEAD~1
-              git fetch origin gh-pages
-              git reset --hard origin/gh-pages
-            done
-            echo "::warning::Snapshot push failed after 5 attempts"
-            return 1
-          }
+          node .github/scripts/league_snapshot.mjs
+          node .github/scripts/discord_alert.mjs || echo "::warning::Discord alert failed"
 
-          ROUNDS=5
-          for round in $(seq 1 $ROUNDS); do
-            echo "=== Round $round/$ROUNDS at $(date -u +%H:%M:%S) ==="
-            take_snapshot || true
-            if [ "$round" -lt "$ROUNDS" ]; then
-              echo "Sleeping 10 minutes…"
-              sleep 600
-              git fetch origin gh-pages
-              git reset --hard origin/gh-pages
-            fi
+          git add league_history.json resolved_names.json alert_state.json
+          git diff --cached --quiet && echo "No changes" && exit 0
+
+          for attempt in 1 2 3; do
+            git commit -m "chore: snapshot league data" && git push && exit 0
+            echo "Push rejected — retrying"
+            git reset --hard HEAD~1
+            git fetch origin gh-pages
+            git reset --hard origin/gh-pages
+            node .github/scripts/league_snapshot.mjs
+            node .github/scripts/discord_alert.mjs || true
+            git add league_history.json resolved_names.json alert_state.json
+            git diff --cached --quiet && echo "No changes after retry" && exit 0
           done
-          echo "=== Done: $ROUNDS snapshots taken ==="
+          echo "::warning::Snapshot push failed after retries"
