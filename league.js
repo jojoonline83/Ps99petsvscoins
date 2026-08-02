@@ -140,6 +140,19 @@ function findLeagueInSnapshot(snap, leagueId, leagueName) {
     return snap.leagues.find(l => l.ID === leagueId || l.Name.toLowerCase() === leagueName.toLowerCase());
 }
 
+function leagueDelta(league, windowMs, toleranceMs) {
+    const snap = findSnapshotNear(windowMs, toleranceMs);
+    if (!snap) return { text: '—', color: '' };
+    const past = findLeagueInSnapshot(snap, league.ID, league.Name);
+    if (!past) return { text: '—', color: '' };
+    const delta = league.Points - past.Points;
+    const sign = delta >= 0 ? '+' : '−';
+    return {
+        text: `${sign}${fmt(Math.abs(delta))}`,
+        color: delta > 0 ? 'var(--success)' : (delta < 0 ? 'var(--danger)' : 'var(--text-muted)'),
+    };
+}
+
 function formatAsOf(snap) {
     return snap ? `as of ${new Date(snap.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '';
 }
@@ -190,7 +203,7 @@ function renderLeaderboard() {
 
     const tbody = document.getElementById('leaderboard-tbody');
     if (!list.length) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-muted)">
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted)">
           ${state.mode === 'search' ? 'No leagues matched your search.' : 'No data yet — waiting for first snapshot.'}
         </td></tr>`;
         return;
@@ -198,12 +211,18 @@ function renderLeaderboard() {
 
     tbody.innerHTML = list.map((l, idx) => {
         const color = colorFor(l.Name);
+        const d10 = leagueDelta(l, 10 * 60_000, 11 * 60_000);
+        const d30 = leagueDelta(l, 30 * 60_000, 8  * 60_000);
+        const d1h = leagueDelta(l, 60 * 60_000, 12 * 60_000);
         return `
       <tr onclick="showLeagueDetail('${esc(l.Name).replace(/'/g, "\\'")}')" style="cursor:pointer">
         <td class="player-rank">${idx + 1}</td>
         <td class="player-name"><span class="st-team-dot" style="background:${color}"></span> ${esc(l.Name)}</td>
         <td>${l.Members}/${l.MemberCapacity}</td>
         <td class="player-points" style="color:${color}">${fmt(l.Points)}</td>
+        <td style="color:${d10.color};font-size:12px">${d10.text}</td>
+        <td style="color:${d30.color};font-size:12px">${d30.text}</td>
+        <td style="color:${d1h.color};font-size:12px">${d1h.text}</td>
       </tr>`;
     }).join('');
 }
