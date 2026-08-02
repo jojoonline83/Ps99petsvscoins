@@ -275,6 +275,20 @@ async function resolveUsernameToId(username) {
             if (res.ok) { const json = await res.json(); return json.data?.[0] || null; }
         } catch (_) {}
     }
+    const searchUrl = `https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(username)}&limit=10`;
+    const tryGet = async (url) => {
+        const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+        if (!res.ok) return null;
+        const json = await res.json();
+        const match = (json.data || []).find(u =>
+            (u.name || '').toLowerCase() === username.toLowerCase()
+        );
+        return match ? { id: match.id, name: match.name, displayName: match.displayName } : null;
+    };
+    try { const r = await tryGet(searchUrl); if (r) return r; } catch (_) {}
+    for (const proxy of CORS_PROXIES) {
+        try { const r = await tryGet(`${proxy}${encodeURIComponent(searchUrl)}`); if (r) return r; } catch (_) {}
+    }
     return null;
 }
 
@@ -307,10 +321,12 @@ async function searchPlayers() {
     }
 
     let userId = Number(query) || null;
+    let robloxDisplayName = null;
     if (!userId) {
         const robloxUser = await resolveUsernameToId(query);
         if (robloxUser) {
             userId = robloxUser.id;
+            robloxDisplayName = robloxUser.displayName || robloxUser.name;
             const matchById = localPlayers.filter(p => p.UserID === userId);
             if (matchById.length) {
                 state.searchResults = matchById;
@@ -322,6 +338,21 @@ async function searchPlayers() {
                 btn.disabled = false;
                 return;
             }
+            if (robloxDisplayName) {
+                const byName = localPlayers.filter(p =>
+                    p.DisplayName.toLowerCase() === robloxDisplayName.toLowerCase()
+                );
+                if (byName.length) {
+                    state.searchResults = byName;
+                    state.mode = 'search';
+                    save();
+                    renderLeaderboard();
+                    statusEl.className = 'import-status success';
+                    statusEl.textContent = `Found ${byName.length} player(s) (display name: "${robloxDisplayName}").`;
+                    btn.disabled = false;
+                    return;
+                }
+            }
         }
     }
 
@@ -331,7 +362,7 @@ async function searchPlayers() {
             const p = res.data;
             const livePlayer = {
                 UserID: p.UserID,
-                DisplayName: p.DisplayName || String(p.UserID),
+                DisplayName: p.DisplayName || robloxDisplayName || String(p.UserID),
                 Points: p.Points || 0,
                 Clan: p.League || p.LeagueName || '—',
             };
