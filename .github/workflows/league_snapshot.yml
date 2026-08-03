@@ -23,6 +23,7 @@ jobs:
       - name: Take snapshot
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_WEBHOOK_WINTHEASURA: ${{ secrets.DISCORD_WEBHOOK_WINTHEASURA }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
