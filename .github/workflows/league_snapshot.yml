@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '*/10 * * * *'
   workflow_dispatch:
+    inputs:
+      test_alert:
+        description: 'Send test alert to Discord webhooks'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -20,7 +25,26 @@ jobs:
         with:
           ref: gh-pages
 
+      - name: Send test alert
+        if: inputs.test_alert == true
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          DISCORD_WEBHOOK_WINTHEASURA: ${{ secrets.DISCORD_WEBHOOK_WINTHEASURA }}
+        run: |
+          send_test() {
+            local url="$1" name="$2"
+            [ -z "$url" ] && echo "No webhook for $name — skipping" && return
+            curl -s -o /dev/null -w "  $name: HTTP %{http_code}\n" -X POST "$url" \
+              -H "Content-Type: application/json" \
+              -d "{\"embeds\":[{\"title\":\"✅ Test Alert\",\"description\":\"Discord webhook **$name** is working!\",\"color\":3066993,\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"footer\":{\"text\":\"PS99 League Tracker — TEST\"}}]}"
+          }
+          echo "Sending test alerts…"
+          send_test "$DISCORD_WEBHOOK" "main"
+          send_test "$DISCORD_WEBHOOK_WINTHEASURA" "wintheasura"
+          echo "Done."
+
       - name: Take snapshot
+        if: inputs.test_alert != true
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_WEBHOOK_WINTHEASURA: ${{ secrets.DISCORD_WEBHOOK_WINTHEASURA }}
