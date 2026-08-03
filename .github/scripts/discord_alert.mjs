@@ -8,6 +8,7 @@ const ALERT_STATE_FILE = 'alert_state.json';
 const WATCHED_PLAYERS = [
     { username: 'Jojo8', userId: 3079452920 },
     { username: 'javierplayz', userId: null },
+    { username: 'wintheasura', userId: null },
 ];
 
 const WINDOWS = [
