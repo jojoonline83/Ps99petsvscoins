@@ -1,14 +1,17 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
-const DISCORD_WEBHOOK = process.env.DISCORD_WEBHOOK;
+const WEBHOOKS = {
+    main: process.env.DISCORD_WEBHOOK,
+    wintheasura: process.env.DISCORD_WEBHOOK_WINTHEASURA,
+};
 const API_BASE = 'https://ps99.biggamesapi.io/v1';
 const HISTORY_FILE = 'league_history.json';
 const ALERT_STATE_FILE = 'alert_state.json';
 
 const WATCHED_PLAYERS = [
-    { username: 'Jojo8', userId: 3079452920 },
-    { username: 'javierplayz', userId: null },
-    { username: 'wintheasura', userId: null },
+    { username: 'Jojo8', userId: 3079452920, channels: ['main'] },
+    { username: 'javierplayz', userId: null, channels: ['main'] },
+    { username: 'wintheasura', userId: null, channels: ['main', 'wintheasura'] },
 ];
 
 const WINDOWS = [
@@ -74,9 +77,9 @@ function findSnapshotNear(snapshots, msAgo, toleranceMs) {
     return best && bestDiff <= toleranceMs ? best : null;
 }
 
-async function sendDiscordAlert(embeds) {
-    if (!DISCORD_WEBHOOK) { console.log('No DISCORD_WEBHOOK set — skipping alert.'); return; }
-    await fetchJson(DISCORD_WEBHOOK, {
+async function sendToWebhook(webhookUrl, embeds) {
+    if (!webhookUrl) return;
+    await fetchJson(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ embeds }),
@@ -84,7 +87,7 @@ async function sendDiscordAlert(embeds) {
 }
 
 // --- Main ---
-if (!DISCORD_WEBHOOK) {
+if (!WEBHOOKS.main) {
     console.error('DISCORD_WEBHOOK env var not set.');
     process.exit(1);
 }
@@ -100,7 +103,7 @@ if (existsSync(ALERT_STATE_FILE)) {
 }
 
 const now = Date.now();
-const embeds = [];
+const embedsByChannel = {};
 
 for (const player of WATCHED_PLAYERS) {
     let userId = player.userId;
@@ -170,7 +173,7 @@ for (const player of WATCHED_PLAYERS) {
         const cooldownMs = 10 * 60_000;
 
         if (now - lastAlerted > cooldownMs) {
-            embeds.push({
+            const embed = {
                 title: `⚠️ ${displayName} — No Point Gain`,
                 description: `**${displayName}** has **0 points gained** in the last **${zeroWindows.join(', ')}**.`,
                 color: 0xff4444,
@@ -181,9 +184,13 @@ for (const player of WATCHED_PLAYERS) {
                 ],
                 timestamp: new Date().toISOString(),
                 footer: { text: 'PS99 League Tracker' },
-            });
+            };
+            for (const ch of (player.channels || ['main'])) {
+                if (!embedsByChannel[ch]) embedsByChannel[ch] = [];
+                embedsByChannel[ch].push(embed);
+            }
             ps.lastAlerted[alertKey] = now;
-            console.log(`Alert: ${displayName} zero gain in ${zeroWindows.join(', ')}`);
+            console.log(`Alert: ${displayName} zero gain in ${zeroWindows.join(', ')} → ${player.channels.join(', ')}`);
         } else {
             console.log(`Skipping alert for ${displayName} (cooldown active)`);
         }
@@ -192,11 +199,14 @@ for (const player of WATCHED_PLAYERS) {
     }
 }
 
-if (embeds.length > 0) {
-    await sendDiscordAlert(embeds);
-    console.log(`Sent ${embeds.length} Discord alert(s).`);
-} else {
-    console.log('No alerts to send.');
+let totalSent = 0;
+for (const [channel, embeds] of Object.entries(embedsByChannel)) {
+    const url = WEBHOOKS[channel];
+    if (!url) { console.log(`No webhook configured for channel "${channel}" — skipping.`); continue; }
+    await sendToWebhook(url, embeds);
+    totalSent += embeds.length;
+    console.log(`Sent ${embeds.length} alert(s) to ${channel} channel.`);
 }
+if (totalSent === 0) console.log('No alerts to send.');
 
 writeFileSync(ALERT_STATE_FILE, JSON.stringify(alertState));
