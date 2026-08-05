@@ -9,9 +9,9 @@ const HISTORY_FILE = 'league_history.json';
 const ALERT_STATE_FILE = 'alert_state.json';
 
 const WATCHED_PLAYERS = [
-    { username: 'Jojo8', userId: 3079452920, channels: ['main'] },
-    { username: 'javierplayz', userId: null, channels: ['main'] },
-    { username: 'wintheasura', userId: null, channels: ['main', 'wintheasura'] },
+    { username: 'Jojo8', userId: 3079452920, channels: ['main'], mention: '967089828837597264' },
+    { username: 'javierplayz', userId: null, channels: ['main'], mention: '967089828837597264' },
+    { username: 'wintheasura', userId: null, channels: ['main', 'wintheasura'], mention: '285683307046240257' },
 ];
 
 const WINDOWS = [
@@ -77,12 +77,14 @@ function findSnapshotNear(snapshots, msAgo, toleranceMs) {
     return best && bestDiff <= toleranceMs ? best : null;
 }
 
-async function sendToWebhook(webhookUrl, embeds) {
+async function sendToWebhook(webhookUrl, embeds, mentions = []) {
     if (!webhookUrl) return;
+    const payload = { embeds };
+    if (mentions.length) payload.content = [...new Set(mentions)].map(id => `<@${id}>`).join(' ');
     await fetchJson(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ embeds }),
+        body: JSON.stringify(payload),
     });
 }
 
@@ -104,6 +106,7 @@ if (existsSync(ALERT_STATE_FILE)) {
 
 const now = Date.now();
 const embedsByChannel = {};
+const mentionsByChannel = {};
 
 for (const player of WATCHED_PLAYERS) {
     let userId = player.userId;
@@ -187,7 +190,9 @@ for (const player of WATCHED_PLAYERS) {
             };
             for (const ch of (player.channels || ['main'])) {
                 if (!embedsByChannel[ch]) embedsByChannel[ch] = [];
+                if (!mentionsByChannel[ch]) mentionsByChannel[ch] = [];
                 embedsByChannel[ch].push(embed);
+                if (player.mention) mentionsByChannel[ch].push(player.mention);
             }
             ps.lastAlerted[alertKey] = now;
             console.log(`Alert: ${displayName} zero gain in ${zeroWindows.join(', ')} → ${player.channels.join(', ')}`);
@@ -203,7 +208,7 @@ let totalSent = 0;
 for (const [channel, embeds] of Object.entries(embedsByChannel)) {
     const url = WEBHOOKS[channel];
     if (!url) { console.log(`No webhook configured for channel "${channel}" — skipping.`); continue; }
-    await sendToWebhook(url, embeds);
+    await sendToWebhook(url, embeds, mentionsByChannel[channel] || []);
     totalSent += embeds.length;
     console.log(`Sent ${embeds.length} alert(s) to ${channel} channel.`);
 }
