@@ -14,6 +14,7 @@ const WATCHED_PLAYERS = [
     { username: 'wintheasura', userId: null, channels: ['main', 'wintheasura'], mention: '285683307046240257' },
     { username: 'doughboy', userId: null, channels: ['wintheasura'], mention: '1029960452077277195' },
     { username: 'diskobull', userId: null, channels: ['wintheasura'], mention: '864881039398928385' },
+    { username: 'e_ethan', userId: null, channels: ['wintheasura'], mention: ['1229756317804265503', '1162921964831256608'] },
 ];
 
 const WINDOWS = [
@@ -194,7 +195,8 @@ for (const player of WATCHED_PLAYERS) {
                 if (!embedsByChannel[ch]) embedsByChannel[ch] = [];
                 if (!mentionsByChannel[ch]) mentionsByChannel[ch] = [];
                 embedsByChannel[ch].push(embed);
-                if (player.mention) mentionsByChannel[ch].push(player.mention);
+                const ms = Array.isArray(player.mention) ? player.mention : player.mention ? [player.mention] : [];
+                mentionsByChannel[ch].push(...ms);
             }
             ps.lastAlerted[alertKey] = now;
             console.log(`Alert: ${displayName} zero gain in ${zeroWindows.join(', ')} → ${player.channels.join(', ')}`);
