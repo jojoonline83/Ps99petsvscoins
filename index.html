@@ -7,10 +7,10 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>PS99 Clan Battle — Pets vs Coins</title>
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=3">
     <script>
     (function(){
-        var V = 4;
+        var V = 3;
         var k = '_ps99cb_v';
         var stored = localStorage.getItem(k);
         localStorage.setItem(k, V);
@@ -43,7 +43,7 @@
         <div class="event-info-bar">
             <div>
                 <div class="event-title">Clan Battle Leaderboard</div>
-                <div class="event-dates" id="event-dates">Top 500 clans, refreshed every ~10 minutes in the background</div>
+                <div class="event-dates" id="event-dates">Top 100 clans, refreshed every ~10 minutes in the background</div>
             </div>
         </div>
 
@@ -52,7 +52,7 @@
                 <h3>🔍 Search Clans</h3>
                 <span class="live-dot"></span>
             </div>
-            <p class="live-desc">Search any clan by name, even if it's not in the Top 500.</p>
+            <p class="live-desc">Search any clan by name, even if it's not in the Top 100.</p>
             <div class="live-manual">
                 <input type="text" id="search-clan-name" class="live-input" placeholder="Enter clan name e.g. Pets vs Coins">
                 <button class="btn-live-secondary" id="search-clan-btn">Search</button>
@@ -61,7 +61,7 @@
             <div id="search-status" class="import-status"></div>
         </div>
 
-        <h3 class="sub-heading" id="leaderboard-heading">Top 500</h3>
+        <h3 class="sub-heading" id="leaderboard-heading">Top 100</h3>
         <div class="players-table-container">
             <table class="players-table">
                 <thead>
@@ -112,6 +112,6 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=4"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>
