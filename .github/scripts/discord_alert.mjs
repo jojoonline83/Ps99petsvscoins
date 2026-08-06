@@ -13,6 +13,7 @@ const WATCHED_PLAYERS = [
     { username: 'javierplayz', userId: null, channels: ['main'], mention: '967089828837597264' },
     { username: 'wintheasura', userId: null, channels: ['main', 'wintheasura'], mention: '285683307046240257' },
     { username: 'doughboy', userId: null, channels: ['wintheasura'], mention: '1029960452077277195' },
+    { username: 'diskobull', userId: null, channels: ['wintheasura'], mention: '864881039398928385' },
 ];
 
 const WINDOWS = [
