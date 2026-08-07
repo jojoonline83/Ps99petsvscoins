@@ -15,6 +15,7 @@ permissions:
 
 jobs:
   snapshot:
+    if: false
     runs-on: ubuntu-latest
     concurrency:
       group: league-snapshot
