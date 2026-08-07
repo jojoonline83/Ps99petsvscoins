@@ -164,7 +164,9 @@ function renderDeltaStat(elId, detail, windowMs, toleranceMs) {
     if (!snap) { el.textContent = '—'; if (asOfEl) asOfEl.textContent = ''; return null; }
     const entry = findLeagueInSnapshot(snap, detail.ID, detail.Name);
     if (!entry) { el.textContent = '—'; if (asOfEl) asOfEl.textContent = ''; return null; }
-    const delta = detail.Points - entry.Points;
+    const latestSnap = findLeagueInSnapshot(historyData[historyData.length - 1], detail.ID, detail.Name);
+    const currentPts = latestSnap ? latestSnap.Points : detail.Points;
+    const delta = currentPts - entry.Points;
     const sign = delta >= 0 ? '+' : '−';
     el.textContent = `${sign}${fmt(Math.abs(delta))}`;
     el.style.color = delta > 0 ? 'var(--success)' : (delta < 0 ? 'var(--danger)' : '');
@@ -189,7 +191,10 @@ function playerDelta(detail, userId, currentPoints, windowMs, toleranceMs) {
     if (!best || bestDiff > toleranceMs) return { text: '—', color: '' };
     const pastLeague = findLeagueInSnapshot(best, detail.ID, detail.Name);
     const past = pastLeague.roster.find(p => p.UserID === userId).Points;
-    const delta = currentPoints - past;
+    const latestLeague = findLeagueInSnapshot(latest, detail.ID, detail.Name);
+    const latestPlayer = latestLeague?.roster?.find(p => p.UserID === userId);
+    const snapshotPts = latestPlayer ? latestPlayer.Points : currentPoints;
+    const delta = snapshotPts - past;
     const sign = delta >= 0 ? '+' : '−';
     return {
         text: `${sign}${fmt(Math.abs(delta))}`,
