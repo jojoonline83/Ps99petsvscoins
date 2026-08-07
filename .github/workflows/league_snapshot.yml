@@ -1,8 +1,8 @@
 name: Snapshot League Data
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
+  # schedule:
+  #   - cron: '*/10 * * * *'
   workflow_dispatch:
     inputs:
       test_alert:
@@ -45,15 +45,11 @@ jobs:
 
       - name: Take snapshot
         if: inputs.test_alert != true
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-          DISCORD_WEBHOOK_WINTHEASURA: ${{ secrets.DISCORD_WEBHOOK_WINTHEASURA }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           node .github/scripts/league_snapshot.mjs
-          node .github/scripts/discord_alert.mjs || echo "::warning::Discord alert failed"
 
           git add league_history.json resolved_names.json alert_state.json
           git diff --cached --quiet && echo "No changes" && exit 0
@@ -65,7 +61,6 @@ jobs:
             git fetch origin gh-pages
             git reset --hard origin/gh-pages
             node .github/scripts/league_snapshot.mjs
-            node .github/scripts/discord_alert.mjs || true
             git add league_history.json resolved_names.json alert_state.json
             git diff --cached --quiet && echo "No changes after retry" && exit 0
           done
